@@ -3052,7 +3052,7 @@ abstract class elFinderVolumeDriver {
 	 * @return string
 	 * @author Dmitry (dio) Levashov
 	 **/
-	protected function mimetype($path, $name = '') {
+	public function mimetype($path, $name = '') {
 		$type = '';
 		
 		if ($name === '') {
