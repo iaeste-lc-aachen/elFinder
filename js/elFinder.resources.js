@@ -30,10 +30,11 @@ elFinder.prototype.resources = {
 	},
 	tpl : {
 		perms      : '<span class="elfinder-perms"/>',
+		lock       : '<span class="elfinder-lock"/>',
 		symlink    : '<span class="elfinder-symlink"/>',
 		navicon    : '<span class="elfinder-nav-icon"/>',
 		navspinner : '<span class="elfinder-navbar-spinner"/>',
-		navdir     : '<div class="elfinder-navbar-wrapper"><span id="{id}" class="ui-corner-all elfinder-navbar-dir {cssclass}"><span class="elfinder-navbar-arrow"/><span class="elfinder-navbar-icon"/>{symlink}{permissions}{name}</span><div class="elfinder-navbar-subtree"/></div>'
+		navdir     : '<div class="elfinder-navbar-wrapper"><span id="{id}" class="ui-corner-all elfinder-navbar-dir {cssclass}"><span class="elfinder-navbar-arrow"/><span class="elfinder-navbar-icon" {style}/>{symlink}{permissions}{name}</span><div class="elfinder-navbar-subtree"/></div>'
 		
 	},
 	
@@ -59,8 +60,19 @@ elFinder.prototype.resources = {
 			var fm   = this.fm,
 				cmd  = this.name,
 				cwd  = fm.getUI('cwd'),
+				tarea= (fm.storage('view') != 'list'),
+				rest = function(){
+					if (tarea) {
+						node.zIndex('').css('position', '');
+						nnode.css('max-height', '');
+					} else {
+						pnode.css('width', '');
+						pnode.parent('td').css('overflow', '');
+					}
+				}, colwidth,
 				dfrd = $.Deferred()
 					.fail(function(error) {
+						rest();
 						cwd.trigger('unselectall');
 						error && fm.error(error);
 					})
@@ -80,8 +92,21 @@ elFinder.prototype.resources = {
 					write : true,
 					date  : 'Today '+date.getHours()+':'+date.getMinutes()
 				},
-				node = cwd.trigger('create.'+fm.namespace, file).find('#'+id),
-				input = $('<input type="text"/>')
+				data = this.data || {},
+				node = cwd.trigger('create.'+fm.namespace, file).find('#'+fm.cwdHash2Id(id)),
+				nnode, pnode,
+				input = $(tarea? '<textarea/>' : '<input type="text"/>')
+					.on('keyup text', function(){
+						if (tarea) {
+							this.style.height = '1px';
+							this.style.height = this.scrollHeight + 'px';
+						} else if (colwidth) {
+							this.style.width = colwidth + 'px';
+							if (this.scrollWidth > colwidth) {
+								this.style.width = this.scrollWidth + 10 + 'px';
+							}
+						}
+					})
 					.keydown(function(e) {
 						e.stopImmediatePropagation();
 
@@ -96,23 +121,34 @@ elFinder.prototype.resources = {
 					})
 					.blur(function() {
 						var name   = $.trim(input.val()),
-							parent = input.parent();
+							parent = input.parent(),
+							valid  = true;
 
 						if (parent.length) {
 
-							if (!name) {
-								return dfrd.reject('errInvName');
+							if (fm.options.validName && fm.options.validName.test) {
+								try {
+									valid = fm.options.validName.test(name);
+								} catch(e) {
+									valid = false;
+								}
+							}
+							if (!name || name === '..' || !valid) {
+								fm.error('errInvName');
+								return false;
 							}
 							if (fm.fileByName(name, phash)) {
-								return dfrd.reject(['errExists', name]);
+								fm.error(['errExists', name]);
+								return false;
 							}
 
+							rest();
 							parent.html(fm.escape(name));
 
 							fm.lockfiles({files : [id]});
 
 							fm.request({
-									data        : {cmd : cmd, name : name, target : phash}, 
+									data        : $.extend({cmd : cmd, name : name, target : phash}, data || {}), 
 									notify      : {type : cmd, cnt : 1},
 									preventFail : true,
 									syncOnFail  : true
@@ -122,6 +158,12 @@ elFinder.prototype.resources = {
 								})
 								.done(function(data) {
 									dfrd.resolve(data);
+									if (data.added && data.added[0]) {
+										var newItem = cwd.find('#'+fm.cwdHash2Id(data.added[0].hash));
+										if (newItem.length) {
+											newItem.trigger('scrolltoview');
+										}
+									}
 								});
 						}
 					});
@@ -132,7 +174,18 @@ elFinder.prototype.resources = {
 			}
 
 			fm.disable();
-			node.find('.elfinder-cwd-filename').empty('').append(input.val(file.name));
+			nnode = node.find('.elfinder-cwd-filename');
+			pnode = nnode.parent();
+			if (tarea) {
+				node.zIndex((node.parent().zIndex()) + 1).css('position', 'relative');
+				nnode.css('max-height', 'none');
+			} else {
+				colwidth = pnode.width();
+				pnode.width(colwidth - 15);
+				pnode.parent('td').css('overflow', 'visible');
+			}
+			nnode.empty('').append(input.val(file.name));
+			input.trigger('keyup');
 			input.select().focus();
 			input[0].setSelectionRange && input[0].setSelectionRange(0, file.name.replace(/\..+$/, '').length);
 

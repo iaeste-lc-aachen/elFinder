@@ -81,12 +81,14 @@ elFinder.prototype.commands.quicklook = function() {
 		 **/
 		openedCss = function() {
 			var win = $(window);
+			var w = Math.min(width, $(window).width()-10);
+			var h = Math.min(height, $(window).height()-80);
 			return {
 				opacity : 1,
-				width  : width,
-				height : height,
-				top    : parseInt((win.height() - height)/2 + win.scrollTop()),
-				left   : parseInt((win.width() - width)/2 + win.scrollLeft())
+				width  : w,
+				height : h,
+				top    : parseInt((win.height() - h - 60)/2 + win.scrollTop()),
+				left   : parseInt((win.width() - w)/2 + win.scrollLeft())
 			}
 		},
 		
@@ -133,7 +135,7 @@ elFinder.prototype.commands.quicklook = function() {
 		fsicon  = $('<div class="'+navicon+' '+navicon+'-fullscreen"/>')
 			.mousedown(function(e) {
 				var win     = self.window,
-					full    = win.is('.'+fullscreen),
+					full    = win.hasClass(fullscreen),
 					scroll  = 'scroll.'+fm.namespace,
 					$window = $(window);
 					
@@ -182,7 +184,11 @@ elFinder.prototype.commands.quicklook = function() {
 				navbar.attr('style', '').draggable(full ? 'destroy' : {});
 				win.toggleClass(fullscreen);
 				$(this).toggleClass(navicon+'-fullscreen-off');
-				$.fn.resizable && parent.add(win).resizable(full ? 'enable' : 'disable').removeClass('ui-state-disabled');
+				var collection = win;
+				if(parent.is('.ui-resizable')) {
+					collection = collection.add(parent);
+				};
+				$.fn.resizable && !fm.UA.Touch && collection.resizable(full ? 'enable' : 'disable').removeClass('ui-state-disabled');
 			}),
 			
 		navbar  = $('<div class="elfinder-quicklook-navbar"/>')
@@ -265,7 +271,7 @@ elFinder.prototype.commands.quicklook = function() {
 				file = self.value,
 				node;
 
-			if (self.closed() && file && (node = cwd.find('#'+file.hash)).length) {
+			if (self.closed() && file && (node = cwd.find('#'+fm.cwdHash2Id(file.hash))).length) {
 				navbar.attr('style', '');
 				state = animated;
 				node.trigger('scrolltoview');
@@ -281,7 +287,7 @@ elFinder.prototype.commands.quicklook = function() {
 			var win     = self.window,
 				preview = self.preview.trigger('change'),
 				file    = self.value,
-				node    = cwd.find('#'+win.data('hash')),
+				node    = cwd.find('#'+fm.cwdHash2Id(win.data('hash'))),
 				close   = function() {
 					state = closed;
 					win.hide();
@@ -292,7 +298,7 @@ elFinder.prototype.commands.quicklook = function() {
 				
 			if (self.opened()) {
 				state = animated;
-				win.is('.'+fullscreen) && fsicon.mousedown()
+				win.hasClass(fullscreen) && fsicon.mousedown()
 				node.length
 					? win.animate(closedCss(node), 500, close)
 					: close();
@@ -383,7 +389,7 @@ elFinder.prototype.commands.quicklook = function() {
 				e.keyCode == 27 && self.opened() && win.trigger('close')
 			})
 			
-			if ($.fn.resizable) {
+			if ($.fn.resizable && !fm.UA.Touch) {
 				win.resizable({ 
 					handles   : 'se', 
 					minWidth  : 350, 
